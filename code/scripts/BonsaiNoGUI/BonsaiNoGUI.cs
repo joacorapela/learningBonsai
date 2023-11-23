@@ -26,5 +26,6 @@ IObservable<Boolean> distinctValuesNot = ???
 Bonsai.Arduino.DigitalOutput digitalOutput = new Bonsai.Arduino.DigitalOutput();
 digitalOutput.Pin = 12;
 digitalOutput.PortName = "COM4"
-digitalOutput.Process(distinctValues);
+IObservable<Boolean> end = digitalOutput.Process(distinctValues);
 
+end.Subscribe(item => "");
