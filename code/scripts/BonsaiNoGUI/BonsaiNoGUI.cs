@@ -20,10 +20,13 @@ namespace BonsaiNoGUI
             var sumSequence = sum.Process(crop.Process(cameraCapture.Generate()));
 
             // no need to use expression builders here since we can write expressions in c# directly
-            var greaterThan = sumSequence.Select(value => value.Val0 > 3000000);
+            var greaterThan = sumSequence.Select(value => value.Val2 > 3000000);
 
             // for Rx operators we can just call them directly
             var distinctUntilChanged = greaterThan.DistinctUntilChanged();
+
+            // my clumsy implementation of not :)
+            var notDistingctUntilChanged = distinctUntilChanged.Select(value => !value);
 
             // send output to arduino
             DigitalOutput digitalOutput = new() { Pin = 12, PortName = "COM4" };
