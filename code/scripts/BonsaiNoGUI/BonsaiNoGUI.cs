@@ -19,14 +19,22 @@ namespace BonsaiNoGUI
             // compute sequence of pixel sums
             var sumSequence = sum.Process(crop.Process(cameraCapture.Generate()));
 
-            // no need to use expression builders here since we can write expressions in c# directly
-            var greaterThan = sumSequence.Select(value => value.Val2 > 3000000);
+	    // select the red channel
+	    var sumSequenceVal2 = sumSequence.Select(x => x.Val2);
+	    
+	    // create a sequence of inner sequences, where each inner sequence
+	    // contains 100 samples from sumSequenceVal2
+	    var seqOfseqs = sumSequenceVal2.Window(100);
+
+	    // average the values of each inner sequence
+	    var average = seqOfseqs.Select(x => x.Average()).Concat();
+
+	    // greaterThan is a boolean sequence telling the the sum of red 
+	    // pixels is larger than the average of the previous 100 values
+	    var greaterThan = sumSequenceVal2.CombineLatest(average, (sum, avg) => sum > avg);
 
             // for Rx operators we can just call them directly
             var distinctUntilChanged = greaterThan.DistinctUntilChanged();
-
-            // my clumsy implementation of not :)
-            var notDistingctUntilChanged = distinctUntilChanged.Select(value => !value);
 
             // send output to arduino
             DigitalOutput digitalOutput = new() { Pin = 12, PortName = "COM4" };
