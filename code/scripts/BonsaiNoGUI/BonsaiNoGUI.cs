@@ -1,31 +1,52 @@
+using System;
+using System.Reactive.Linq;
+using Bonsai.Arduino;
+using Bonsai.Dsp;
+using Bonsai.Vision;
+using OpenCV.Net;
 
-Bonsai.Vision.CameraCapture cameraCapture = new Bonsai.Vision.CameraCapture();
-camera.Index = 0;
+namespace BonsaiNoGUI
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            // declare bonsai workflow elements
+            CameraCapture cameraCapture = new() { Index = 0 };
+            Crop crop = new() { RegionOfInterest = new Rect(222,34,228,308) };
+            Sum sum = new();
 
-Bonsai.Vision.Crop crop = new Bonsai.Vision.Crop();
-crop.RegionOfInterest = new System.Windows.Rect(222,34,228,308);
-IObservable<OpenCV.Net.IPlImage> cameraCaptureCropped = crop.Process(cameraCapture);
+            // compute sequence of pixel sums
+            var sumSequence = sum.Process(crop.Process(cameraCapture.Generate()));
 
-Bonsai.DSP.Sum sum = new Bonsai.DSP.Sum();
-IObservable<OpenCV.Net.Scalar> sumRes = sum.Process(cameraCaptureCropped);
+	    // select the red channel
+	    var sumSequenceVal2 = sumSequence.Select(x => x.Val2);
+	    
+	    // create a sequence of inner sequences, where each inner sequence
+	    // contains 100 samples from sumSequenceVal2
+	    var seqOfseqs = sumSequenceVal2.Window(100);
 
-// how can I build a sequence from the red component of sum?
-// what is a Bonsai expression (ExpressionBuilder)?
-IObservable<???> sumResRed = ???
+	    // average the values of each inner sequence
+	    var average = seqOfseqs.Select(x => x.Average()).Concat();
 
-// how can I build a sequence greater than a value?
-// what is a Bonsai expression?
-IObservable<Boolean> sumResRedGreaterThan = ???
+	    // greaterThan is a boolean sequence telling the the sum of red 
+	    // pixels is larger than the average of the previous 100 values
+	    var greaterThan = sumSequenceVal2.CombineLatest(average, (sum, avg) => sum > avg);
 
-Bonsai.Reactive.DistinctUntilChanged distinctUntilChanged = new Bonsai.Reactive.DistinctUntilChanged();
-IObservable<Boolean> distinctValues = distirctUntilChanged.Process(sumResRedGreaterThan);
+            // for Rx operators we can just call them directly
+            var distinctUntilChanged = greaterThan.DistinctUntilChanged();
 
-// another expression
-IObservable<Boolean> distinctValuesNot = ???
+            // send output to arduino
+            DigitalOutput digitalOutput = new() { Pin = 12, PortName = "COM4" };
+            var output = digitalOutput.Process(distinctUntilChanged);
 
-Bonsai.Arduino.DigitalOutput digitalOutput = new Bonsai.Arduino.DigitalOutput();
-digitalOutput.Pin = 12;
-digitalOutput.PortName = "COM4"
-IObservable<Boolean> end = digitalOutput.Process(distinctValues);
+            // subscribe to entire pipeline; print out all values and errors
+            using var subscription = output.Subscribe(
+                value => Console.WriteLine(value),
+                ex => Console.Error.WriteLine(ex));
 
-end.Subscribe(item => "");
+            // wait for end...
+            Console.ReadLine();
+        }
+    }
+}
